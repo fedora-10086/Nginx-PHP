@@ -1,0 +1,90 @@
+http://rtcamp.com/wordpress-nginx/tutorials/php/increase-script-execution-time/ 
+Changes in php.ini
+
+If you want to change max execution time limit for php scripts from 30 seconds (default) to 300 seconds.
+
+vim /etc/php5/fpm/php.ini
+
+Set…
+
+max_execution_time = 300
+
+In Apache, applications running PHP as a module above would have suffice. But in our case we need to make this change at 2 more places.
+Changes in PHP-FPM
+
+This is only needed if you have already un-commented request_terminate_timeout parameter before. It is commented by default, and takes value of max_execution_time found in php.ini
+
+Edit…
+
+vim /etc/php5/fpm/pool.d/www.conf
+
+Set…
+
+request_terminate_timeout = 300
+
+Changes in Nginx Config
+
+To increase the time limit for example.com by
+
+vim /etc/nginx/sites-available/example.com
+
+location ~ \.php$ {
+	include /etc/nginx/fastcgi_params;
+        fastcgi_pass  unix:/var/run/php5-fpm.sock;
+	fastcgi_read_timeout 300; 
+}
+
+If you want to increase time-limit for all-sites on your server, you can edit main nginx.conf file:
+
+vim /etc/nginx/nginx.conf
+
+Add following in http{..} section
+
+http {
+	#...
+        fastcgi_read_timeout 300; 
+	#...
+}
+
+Reload PHP-FPM & Nginx
+
+Don’t forget to do this so that changes you have made will come into effect:
+
+service php5-fpm reload
+service nginx reload
+
+原来，php-fpm有一个参数 max_requests，该参数指明了，每个children最多处理多少个请求后便会被关闭，默认的设置是500。因为php是把请求轮询给每个 children，在大流量下，每个childre到达max_requests所用的时间都差不多，这样就造成所有的children基本上在同一时间 被关闭。
+
+在这期间，nginx无法将php文件转交给php-fpm处理，所以cpu会降至很低(不用处理php，更不用执行sql)，而负载会升至很高(关闭和开启children、nginx等待php-fpm)，网卡流量也降至很低(nginx无法生成数据传输给客户端)
+
+解决问题很简单，增加children的数量，并且将 max_requests 设置未 0 或者一个比较大的值：
+
+打开 /usr/local/php/etc/php-fpm.conf
+
+然后重启php-fpm。
+
+二、增加缓冲区容量大小
+
+将nginx的error log打开，发现“pstream sent too big header while reading response header from upstream”这样的错误提示。查阅了一下资料，大意是nginx缓冲区有一个bug造成的,我们网站的页面消耗占用缓冲区可能过大。参考老外写的修 改办法增加了缓冲区容量大小设置，502问题彻底解决。后来系统管理员又对参数做了调整只保留了2个设置参数：client head buffer，fastcgi buffer size。
+
+三、request_terminate_timeout
+
+如果主要是在一些post或者数据库操作的时候出现502这种情况，而不是在静态页面操作中常见，那么可以查看一下php-fpm.conf设置中的一项：
+
+request_terminate_timeout
+
+这个值是max_execution_time，就是fast-cgi的执行脚本时间。
+
+0s
+
+0s为关闭，就是无限执行下去。（当时装的时候没仔细看就改了一个数字）
+
+发现，问题解决了，执行很长时间也不会出错了。
+
+优化fastcgi中，还可以改改这个值5s 看看效果。
+
+php-cgi进程数不够用、php执行时间长、或者是php-cgi进程死掉，都会出现502错误。
+
+==============================================
+
+我把以上的值300改成1000秒去了
