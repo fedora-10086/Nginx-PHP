@@ -1,0 +1,27 @@
+memcache 未授权访问漏洞
+
+漏洞描述：
+
+ 
+
+memcache是一套常用的key-value缓存系统，由于它本身没有权限控制模块，所以开放在外网的memcache服务很容易被攻击者扫描发现，通过命令交互可直接读取memcache中的敏感信息。
+
+修复方案：
+
+因memcache无权限控制功能，所以需要用户对访问来源进行限制。
+
+方案一：
+
+如果memcache没有在外网开放的必要，可在memcached启动的时候指定绑定的ip地址为 127.0.0.1。例如：
+
+memcached -d -m 1024 -u root -l 127.0.0.1 -p 11211 -c 1024 -P /tmp/memcached.pid
+
+其中 -l 参数指定为本机地址。
+
+方案二：（注意：请谨慎配置iptables规则）
+
+如果memcache服务需要对外提供服务，则可以通过iptables进行访问控制。
+
+iptables -A INPUT -p tcp -s 192.168.0.2 --dport 11211 -j ACCEPT
+
+上述规则的意思是只允许192.168.0.2这个ip对11211端口进行访问。
