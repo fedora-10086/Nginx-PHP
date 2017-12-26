@@ -1,0 +1,46 @@
+1、repcached介绍
+repcached是日本人开发的实现memcached复制功能，它是一个单 master单 slave的方案，但它的 master/slave都是可读写的，而且可以相互同步，如果 master坏掉， slave侦测到连接断了，它会自动 listen而成为 master；而如果 slave坏掉， master也会侦测到连接断，它就会重新 listen等待新的 slave加入
+
+2、安装
+在两台服务器上分别安装memcached服务，另注本文libevent的版本为：libevent-1.4.13，下载地址: http://www.monkey.org/~provos/libevent-1.4.13-stable.tar.gz
+repcached有两种方式：
+方式一、下载对应的repcached版本
+#wget http://downloads.sourceforge.net/repcached/memcached-1.2.8-repcached-2.2.tar.gz
+#tar zxf memcached-1.2.8-repcached-2.2.tar.gz
+#cd memcached-1.2.8-repcached-2.2
+
+【方式二、下载对应patch版本
+#wget http://downloads.sourceforge.net/repcached/repcached-2.2-1.2.8.patch.gz
+#gzip -cd ../repcached-2.2-1.2.8.patch.gz | patch -p1】
+#./configure –enable-replication
+# make
+# make install
+
+3、启动：
+启动master
+#/usr/local/bin/memcached -v -l 192.168.0.160 -p 11211 -uroot
+replication: listen (master监听)
+
+启动salve
+#/usr/local/bin/memcached -v -l 192.168.0.163 -p 11213 -uroot -x 192.168.0.160 -X 11212
+replication: connect (peer=192.168.0.160:11212)
+replication: marugoto copying
+replication: start
+
+启动正常后，master将accept。
+
+4、测试：
+操作master
+#telnet 192.168.0.160 11211
+#set key1 0 0 3
+blog.5sail.com
+
+查看slave
+#telnet 192.168.0.163 11213
+#get key1
+如果正常显示blog.5sail.com，则表示repcached配置成功
+
+5、应用：
+可以实现cache冗余，避免因cache服务器down掉而导致数据丢失。
+
+注意：如果master down机，slave接管并成为master，这时down机的master只能启用slave,他们之间互换角色，才能保持复制功能。换句话说，master没有抢占功能。
