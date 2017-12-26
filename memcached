@@ -1,0 +1,209 @@
+key value
+telnet ip 80
+get uri http/1.1 host enter enter
+
+http://memcached.org
+memcached:缓存服务器，但本身无法决定缓存任何数据。
+    一半依赖于客户端，一半依赖于服务器
+    lazy:惰性    LRU:最近最少使用机制清除机制
+
+    内存缓存服务器：
+        最小48bytes
+        最大1MB
+
+内存管理：
+buddy system：伙伴系统，避免内存外碎片
+slab allocator:slab 分配器，分配小于4K的文件的分配机制,避免内存内碎片
+
+
+增长因子：growth factor,1.25
+    slab class,slab chunk
+memcached:不通信分布式缓存服务器
+
+一致性哈希算法
+
+rpm -q libevent
+rpm -ql libevent
+http://libevent.org
+tar zxvf libevent-2.0.20-stable.tar.gz
+cd libevent-2.0.20
+./configure --/usr/local/libevent/lib
+make && make install
+
+echo "/usr/local/libevent/lib" > /etc/ld.so.conf/libevent.conf
+ldconfig
+
+tar zxvf memcached-1.4.15.tar.gz
+cd memcached
+./configure --prefix=/usr/local/memcached --with-libevent=/usr/local/libevent
+make && make install
+
+rmp包站点：http://rpmfind.net
+http://libevent.org
+
+./configure --help|grep less
+
+yum list all |grep libevent    //检查依赖包
+yum list all |grep sasl
+
+memcached --help
+    -p :tcp port 11211
+    -U :udp port 11211
+    -m:以MB为单位，指定最大使用内存空间
+    -d 守护进程
+    -f 增长因子
+    -n 指定最小的slab chunk大小，缺省48byte字节
+    -P pid
+    -l ipaddress
+    -L
+    -s 启用sasl用户认证
+
+/usr/local/memcached/bin/memcached -d -m 128 -n 20 -f 1.25 -vv -u nobody
+netstat -tunlp
+telnet localhost 11211
+stats
+常用命令：
+add命令
+add mykey 0 30 5
+hello world
+
+get命令
+get mykey
+
+flush_all命令
+
+stats命令
+
+
+perl module
+    cache::memcached
+
+php
+  memcache
+  memcached
+
+c/c++
+libmemecached:命令行工具
+
+memadmin:工具
+
+
+vi /etc/init.d/memcached   //添加启动脚本
+#! /bin/bash
+#  
+# memcached:    MemCached Daemon  
+#  
+# chkconfig:    - 90 25 
+# description:  MemCached Daemon  
+#  
+### BEGIN INIT INFO
+# Provides:          memcached
+# Required-Start:    $syslog
+# Required-Stop:     $syslog
+# Should-Start:        $local_fs
+# Should-Stop:        $local_fs
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description:    memcached - Memory caching daemon
+# Description:        memcached - Memory caching daemon
+### END INIT INFO
+
+PORT=11211
+USER=root
+MAXCONN=1024
+CACHESIZE=64
+OPTIONS=""
+
+//修改脚本实现 增减配置的问题 ：事先把上面5个参数，vi于/etc/sysconfig/memcached 下。。。
+[ -f /etc/sysconfig/memcached ] && . /etc/sysconfig/memcached    
+
+RETVAL=0
+#prog="memcached"
+prog="/usr/local/memcached/bin/memcached"
+desc="Distributed memory caching"
+lockfile="/var/lock/subsys/memcached"
+
+start () {
+    echo -n $"Starting $prog: "
+    memcached -d -p $PORT -u $USER -m $CACHESIZE -c $MAXCONN -P /var/run/memcached.pid $OPTIONS
+    RETVAL=$?
+    echo
+    [ $RETVAL -eq 0 ] && touch /var/lock/subsys/memcached
+}
+stop () {
+    echo -n $"Stopping $prog: "
+    kill `cat /var/run/memcached.pid`
+    RETVAL=$?
+    echo
+    if [ $RETVAL -eq 0 ] ; then
+        rm -f /var/lock/subsys/memcached
+        rm -f /var/run/memcached.pid
+    fi
+}
+
+restart () {
+    stop
+    start
+}
+
+
+# See how we were called.
+case "$1" in
+    start)
+        start
+        ;;
+    stop)
+    stop
+    ;;
+    restart|reload)
+    restart
+    ;;
+    *)
+    echo $"Usage: $0 {start|stop|status|restart|reload}"
+    exit 1
+esac
+
+exit $?
+
+
+
+安装memcache的php扩展
+1)
+tar xf memcache-2.2.5.tgz
+/usr/local/php/bin/phpize
+./configure --with-php-config=/usr/local/php/bin/php-config --enable-memcache
+make && make install
+
+2)vi /usr/local/php/etc/php.ini 添加memcache.so
+
+lftps 安装及用法。。。。。学习
+
+memadmin //memcached 图形管理工具
+
+
+配置php会话保存至memcache中
+vi /usr/local/php/etc/php.ini
+session.save_handler = memcache
+session.save_path = "tcp://公网IP：11211?persistent=1&weight=1&timeout=1&retry_interval=15"
+
+nginx整合memcached：
+server {
+    listen    80;
+    server_name   www.sssss.com;
+   
+    #charset koi8-r;
+    charset utf8;
+   
+    #access_log  logs/host.access.log  main;
+    location / {
+        set memcached_key $uri;
+        memcached_pass  127.0.0.1:11211;
+        default_type    text/html;
+        error_page    404 @fallback;
+    }
+
+    location @fallback {
+        proxy_pass http://网站IP;
+    }
+}
+
